@@ -3,4 +3,5 @@ dist/
 dsb_spider.egg-info/
 build/
 *.pyc
-*~
+*.un~
+.DS_Store
