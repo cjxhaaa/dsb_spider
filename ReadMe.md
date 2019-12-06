@@ -13,7 +13,7 @@ resp = request('GET', 'https://www.macys.com/shop/product?ID=10442340')
 # 默认保存当前resp.text到/tmp/t.html
 resp.save_self() 
  
-# 默认支持xpath, 且支持多项xpath规则
+# 默认支持xpath, 且支持多项xpath规则直到匹配命中
 title1 = resp.xpath('//head/title/text()')
 title2 = resp.xpath(['//head/title/text()', '//meta[@name="twitter:title"]/text()'])
 # 输出： ["Origins 5-Pc. Plantscription Nourish, Renew & Hydrate Set & Reviews - Macy's"]
