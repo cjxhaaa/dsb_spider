@@ -47,16 +47,6 @@ class _FuncRegistry():
         self[obj.__name__] = obj
         return obj
     
-    def __deco(self, name, obj):
-        self[name] = obj
-        return obj
-    
-    def __get__(self, instance, owner):
-        if instance is None:
-            return self
-        else:
-            return MethodType(self, instance)
-    
     def __repr__(self):
         return f'<{self.__class__.__name__}|{self.name}>'
     
