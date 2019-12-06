@@ -5,12 +5,13 @@ from urllib.parse import urljoin, urlparse
 from lxml import etree
 from requests.exceptions import (ConnectTimeout, ConnectionError, ReadTimeout)
 from requests.adapters import HTTPAdapter
+from functools import partial
+from typing import List, Set, Union, Callable
 import requests
 import time
 import traceback
-import chardet
 
-__ALL__ = ['request', 'get', 'post', 'response2selector','HTTPSSortHeaderAdapter']
+__ALL__ = ['request', 'get', 'post', 'tranResponse','response2selector','HTTPSSortHeaderAdapter']
 
 default_headers = {
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -21,75 +22,79 @@ default_headers = {
 
 SESSIONS_MAP = {}
 
+_Paths = Union[str, List[str], Set[str]]
+_XpathElems =  Union[List[etree._Element], List[str]]
+_Content = Union[str, bytes]
+_Resp = Union[requests.Response, _Content]
+
+ns = etree.FunctionNamespace(None)
+
+@ns
+def trim(context, result):  # 新增: //a[trim(text()) = "Dsb"]
+    return [text.strip() for text in result]
+
+@ns
+def lower(context, result): # 新增：//a[lower(text()) = "dsb"]
+    return [text.strip() for text in result]
+
+@ns
+def upper(context, result): #新增：//a[upper(text()) = "DSB"]
+    return [text.strip() for text in result]
+
 
 class _Response(object):
-    def __init__(self, content):
-        self.content = content
-        if isinstance(self.content, bytes):
-            self._encoding = chardet.detect(self.content)["encoding"]
+    def __init__(self, text: _Content):
+        if isinstance(text, bytes):
+            self._content = text
         else:
-            self._encoding = "utf8"
-    
-    @property
-    def apparent_encoding(self):
-        return self.encoding
-    
-    @property
-    def encoding(self):
-        return self._encoding
-    
-    @encoding.setter
-    def encoding(self, value):
-        self._encoding = value
-    
-    @property
-    def text(self):
-        if isinstance(self.content, bytes):
-            return self.content.decode(self.encoding)
+            self._content = bytes(text, 'utf8')
         
-        else:
-            return self.content
-
-
-def response2selector(response):
-    if isinstance(response, (str, bytes)):
-        response = _Response(response)
-    
-    element = None
-    
-    def _xpath(_paths):
-        nonlocal element  # lxml被动解析
-        if element is None:
+class NewResponse(requests.Response):
+    def __init__(self):
+        super().__init__()
+        self.element = None
+        
+    def xpath(self, paths:_Paths) -> _XpathElems:
+        if self.element is None:
             try:
                 try:
-                    element = etree.HTML(response.text)
+                    self.element = etree.HTML(self.text)
                 except ValueError:
-                    pass
-                
-                if element is None:
-                    element = etree.HTML(response.text.encode('utf8'))
+                    self.element = etree.HTML(self.text.encode('utf8'))
             except etree.XMLSyntaxError as e:
-                encoding2 = response.apparent_encoding
-                # print(e)
-                print('change encoding', response.encoding, 'to', encoding2)
-                response.encoding = encoding2
-                element = etree.HTML(response.text)
-        try:
-            if not isinstance(_paths, (tuple, list)):
-                _paths = [_paths, ]
-            
-            result_list = []
-            for _path in _paths:
-                result_list = element.xpath(_path)
-                if len(result_list) > 0:
-                    break
-            return result_list
+                encoding2 = self.apparent_encoding
+                print('change encoding', self.encoding, 'to', encoding2)
+                self.encoding = encoding2
+                self.element = etree.HTML(self.text)
+                
+        if self.element is None:
+            return []
         
+        try:
+            if isinstance(paths, str):
+                paths = [paths, ]
+        
+            for _path in paths:
+                nodes = self.element.xpath(_path)
+                if len(nodes) > 0:
+                    return nodes
+            return []
+    
         except AttributeError as e:
             traceback.print_exc()
             return []
+        
+    def save_self(self):
+        with open('/tmp/t.html', 'w') as fb:
+            print('/tmp/t.html')
+            fb.write(self.text)
     
-    return _xpath
+def tranResponse(response: _Resp) -> Union[NewResponse, _Response]:
+    if isinstance(response, (str, bytes)):
+        response = _Response(response)
+    newResp = NewResponse()
+    newResp.__dict__.update(response.__dict__)
+    return newResp
 
 # 头部排序
 class HTTPSSortHeaderConnection():
@@ -169,7 +174,8 @@ def counter_session(netloc, max_count):
 def default_get_proxies():
     return None
 
-def request(method, url, **kwargs):
+def request(method:str, url:str, adapter:HTTPAdapter=None, max_count:int=None,retry:int=3,
+            proxies=None,use_default_proxy:bool=False,proxy_port:int=None,proxy:str=None, **kwargs) -> NewResponse:
     '''
     :param method:
     :param url:
@@ -188,9 +194,6 @@ def request(method, url, **kwargs):
     以及其他若干requests.request参数
     :return:
     '''
-    adapter = kwargs.pop("adapter", None)
-    max_count = kwargs.pop('max_count', None)
-    retry = kwargs.pop('retry', 3)
     kwargs.setdefault('timeout', 30)
     kwargs.setdefault('allow_redirects', True)
     kwargs.setdefault('verify', False)
@@ -202,17 +205,12 @@ def request(method, url, **kwargs):
     kwargs['headers'] = headers
     
     # proxies
-    proxies = kwargs.pop('proxies', None)
-    use_default_proxy = kwargs.pop('use_default_proxy', False)
-    proxy_port = kwargs.pop('proxy_port', None)
-    proxy = kwargs.pop("proxy", None)
-        
-    if not proxies and proxy_port:
+    if proxy_port:
         proxies = {
             'http': f'socks5://localhost:{proxy_port}',
             'https': f'socks5://localhost:{proxy_port}'
         }
-    if not proxies and proxy:
+    if proxy:
         proxies = {'http': proxy, 'https': proxy}
         
     
@@ -263,35 +261,35 @@ def request(method, url, **kwargs):
         return urljoin(response.url, url)
     
     # Binding a html parser to response
-    response.xpath = response2selector(response)
+    
+    response = tranResponse(response)
     response.urljoin = _urljoin
     response.urlsjoin = _urlsjoin
     response.url_original = url
     return response
 
-def get(url, params=None, **kwargs):
-    """Sends a GET request.
-
-    :param url: URL for the new :class:`Request` object.
-    :param params: (optional) Dictionary or bytes to be sent in the query string for the :class:`Request`.
-    :param \*\*kwargs: Optional arguments that ``request`` takes.
-    :return: :class:`Response <Response>` object
-    :rtype: requests.Response
-    """
-    return request('get', url, params=params, **kwargs)
+get = partial(request, 'GET')
+post = partial(request, 'post')
+delete = partial(request, 'delete')
+head = partial(request, 'head')
+put = partial(request, 'PUT')
 
 
-def post(url, data=None, json=None, **kwargs):
-    # print(kwargs)
-    """Sends a POST request.
-
-    :param url: URL for the new :class:`Request` object.
-    :param data: (optional) Dictionary, bytes, or file-like object to send in the body of the :class:`Request`.
-    :param json: (optional) json data to send in the body of the :class:`Request`.
-    :param \*\*kwargs: Optional arguments that ``request`` takes.
-    :return: :class:`Response <Response>` object
-    :rtype: requests.Response
-    """
-    
-    # **kwargs (dict kwargs被解包成了 参数 传入)
-    return request('post', url, data=data, json=json, **kwargs)
+if __name__ == '__main__':
+    resp = tranResponse('''<html>
+  <head>
+    <link href="great.css" rel="stylesheet" type="text/css">
+    <title>Best Page Ever</title>
+  </head>
+  <body>
+    <h1 class="heading">Top News</h1>
+    <p style="font-size: 200%">World News only on this page</p>
+    Ah, and here's some more text, by the way.
+    <p>... and this is a parsed fragment ...</p>
+  </body>
+</html>''')
+    print(resp.xpath('//head'))
+    # resp = request('GET','http://m.fine3q.com/home-w/index.html')
+    # hh = resp.xpath('//node()')
+    # import ipdb
+    # ipdb.set_trace()

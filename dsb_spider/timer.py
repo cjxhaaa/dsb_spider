@@ -3,7 +3,7 @@ import datetime
 
 
 class Timer(object):
-    def __init__(self, name, timeout=0):
+    def __init__(self, name:str, timeout:int=0):
         self.name = name
         self.timeout = timeout
         self.start_ts = None

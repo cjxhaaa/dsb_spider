@@ -1,12 +1,12 @@
-def str_to_dict(str1, sep=':'):
+from typing import Mapping
+import hashlib
+
+def str_to_dict(s:str, sep:str=':') -> Mapping[str, str]:
     dict1 = {}
-    for line in str1.splitlines(True):
+    for line in s.splitlines(True):
         if line.strip():
             p = line.find(sep)
-            # print '"'+line[:p]+'":"'+line[p+1:]+'",'
-            # print '"'+line[:p]+'":"'+line[p+1:-1]+'",\n',
             dict1[line[:p].strip()] = line[p + 1:-1].strip()
-    # print_json(dict1)
     return dict1
 
 def typed_property(name, expected_type, default_value=None):
@@ -26,7 +26,24 @@ def typed_property(name, expected_type, default_value=None):
         setattr(self, storage_name, value)
 
     @prop.deleter
-    def first_name(self):
+    def prop(self):
         raise AttributeError("Can't delete attribute")
 
     return prop
+
+def tobyte(s):
+    if isinstance(s, bytes):
+        return s
+    return str(s).encode("utf8")
+
+
+def hash_args(*args, **kwargs) -> str:
+    hash_instance = hashlib.md5()
+    for arg in sorted(args):
+        hash_instance.update(tobyte(arg))
+
+    for key in sorted(kwargs.keys()):
+        value = kwargs[key]
+        hash_instance.update(tobyte(str(key) + str(value)))
+
+    return hash_instance.hexdigest()

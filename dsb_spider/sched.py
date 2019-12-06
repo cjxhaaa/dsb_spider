@@ -6,15 +6,16 @@ from dsb_spider import log
 logger = log.getLogger('dsb')
 
 
+
 class TaskListener():
-    def __init__(self, queue, concurrent=3):
+    def __init__(self, queue, concurrent:int=3):
         self.queue = queue
         self.concurrent = concurrent
     
     def enqueue(self, record):
         self.queue.put_nowait(record)
     
-    def dequeue(self, block):
+    def dequeue(self, block:bool=True):
         task = self.queue.get(block)
         return task
     
@@ -23,7 +24,7 @@ class TaskListener():
         has_task_done = hasattr(q, 'task_done')
         while True:
             try:
-                task = self.dequeue(True)
+                task = self.dequeue()
             except queue.Empty:
                 break
             
@@ -31,18 +32,17 @@ class TaskListener():
                 if not task:
                     break
                 self.handle(task)
-                
-                if has_task_done:
-                    q.task_done()
             except Exception as ex:
                 traceback.print_exc()
                 logger.errorx(ex)
             finally:
                 task.finish()
+                if has_task_done:
+                    q.task_done()
     
     def handle(self, task):
         logger.debug(f'start: {task}')
-        task.do_task()
+        task.run()
     
     def start(self):
         for i in range(self.concurrent):
