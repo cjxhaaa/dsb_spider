@@ -4,7 +4,7 @@ pip3 install dsb_spider==0.2.7
 ```
 ## 使用
 
-####基本请求
+#### 基本请求
 ```python
 from dsb_spider.req import request
   
@@ -25,7 +25,7 @@ resp.xpath('//head/meta[lower(@value) = "product"]')
 resp.xpath('//head/meta[upper(@value) = "PRODUCT"]')
 
 ```
-####日志打印格式化
+#### 日志打印格式化
 ```python
 from dsb_spider import getLogger
 
