@@ -39,9 +39,15 @@ logger.error('haha')
 
 Task对象是基于传入的参数实现的单例，task会有Ready，Running，Stoped三种状态。task初始为Ready状态
  
+自动去重：通过单例+状态，保证了任务执行的原子性。
+ 
+因为同一时间只能有一个task实例存在，当处于running状态时，其他任务变量执行该任务实例的ready方法会失败
+ 
 * Ready态，此时可进行ready，stop, 不可run。
 * Running态，此时可run, stop, 不可ready。
 * Stop态，任务结束，啥都干不了。
+
+
 
 ```text
                   do_ready               do_task
