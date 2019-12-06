@@ -1,8 +1,23 @@
-from dsb_spider.log import getLogger
+from dsb_spider.log import getLogger,DEBUG
 from dsb_spider.log.ex import DsbException
 logger = getLogger('dsb')
+logger.setLevel(DEBUG)
 from dsb_spider.utils import hash_args
 from types import MethodType,FunctionType
+
+class TaskStateError(DsbException):
+    ex_msg = 'haha~'
+
+class TaskAlreadyReadyError(TaskStateError):
+    ex_msg = 'Already ready'
+
+
+class TaskNotReadyError(TaskStateError):
+    ex_msg = 'Not ready'
+
+
+class TaskAlreadyStopedError(TaskStateError):
+    ex_msg = 'Already stoped'
 
 # 注册
 _TASK_FUNC_REGISTERS = {}
@@ -60,6 +75,33 @@ def getTaskFuncRegister(name: str):
         register = _TASK_FUNC_REGISTERS[name] = _FuncRegistry(name)
         return register
 
+exRegistry = getTaskFuncRegister('ex')
+
+@exRegistry
+def default(ex, *args, **kwargs):
+    logger.errorx(ex)
+    pass
+
+def exhandler(ignore:bool=True, interrupt:bool=False):
+    def deco_func(func):
+        def deco_args(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except TaskStateError as _ex:
+                logger.debug(_ex)
+            except Exception as _ex:
+                if hasattr(_ex, 'handle_name'):
+                    exRegistry[_ex.handle_name](_ex, *args, *kwargs)
+                else:
+                    exRegistry['default'](_ex, *args, *kwargs)
+                if interrupt:
+                    self.finish()
+                if not ignore:
+                    raise
+        return deco_args
+    return deco_func
+                
+
 # 使用单例保证相同任务运行的唯一性
 class TaskSingleton(type):
     _instances = {}
@@ -80,27 +122,28 @@ class TaskSingleton(type):
         except KeyError:
             pass
 
-# 定义任务状态: stoped -> ready -> stoped , 只有ready状态可run
+# 定义任务状态: ready -> running -> stoped , 只有ready状态可run
 # ready:
-
-class StopedState():
-    @staticmethod
-    def ready(task):
-        task.new_state(ReadyState)
-        task.do_ready()
-    
-    @staticmethod
-    def run(task):
-        raise RuntimeError('Not ready')
-    
-    @staticmethod
-    def stop(task):
-        raise RuntimeError('Already stoped')
 
 class ReadyState():
     @staticmethod
     def ready(task):
-        raise RuntimeError('Already ready')
+        task.do_ready()
+        task.new_state(RunningState)
+    
+    @staticmethod
+    def run(task):
+        raise TaskNotReadyError
+    
+    @staticmethod
+    def stop(task):
+        task.new_state(StopedState)
+        task.do_stop()
+
+class RunningState():
+    @staticmethod
+    def ready(task):
+        raise TaskAlreadyReadyError
 
     @staticmethod
     def run(task):
@@ -110,6 +153,19 @@ class ReadyState():
     def stop(task):
         task.new_state(StopedState)
         task.do_stop()
+
+class StopedState():
+    @staticmethod
+    def ready(task):
+        raise TaskAlreadyStopedError
+
+    @staticmethod
+    def run(task):
+        raise TaskAlreadyStopedError
+
+    @staticmethod
+    def stop(task):
+        raise TaskAlreadyStopedError
     
 # 定义任务阶段： ready -> run -> finish
 
@@ -121,29 +177,30 @@ class Task(object, metaclass=TaskSingleton):
     #     return super().__new__(cls)
     
     def __init__(self,_name, listener=None, **kwargs):
-        self.task_name = _name
+        self._name = _name
         self.listener=listener
-        self.new_state(StopedState)
+        self.new_state(ReadyState)
         registry = getTaskFuncRegister(_name)
         for key, value in registry.items():
             setattr(self, key, MethodType(value, self))
         for k, v in kwargs.items():
             setattr(self, k, v)
+        self._dead = False
     
     def new_state(self, state):
         self._state = state
     
+    @exhandler(interrupt=True)
     def ready(self):
-        try:
-            self._state.ready(self)
-            if self.listener is not None:
-                self.listener.enqueue(self)
-        except RuntimeError as ex:
-            logger.debug(ex)
-    
+        self._state.ready(self)
+        if self.listener is not None:
+            self.listener.enqueue(self)
+
+    @exhandler(interrupt=True)
     def run(self):
         self._state.run(self)
-    
+
+    @exhandler()
     def finish(self):
         if hasattr(self, 'hash_key'):
             TaskSingleton.clear(self.hash_key)
@@ -167,7 +224,7 @@ if __name__ == '__main__':
         
     @haha
     def do_task(self):
-        print(self)
+        print('run')
 
     @haha
     def do_stop(self):
@@ -182,7 +239,5 @@ if __name__ == '__main__':
     task.ready()
     task.run()
     task.finish()
-    print(isinstance(do_stop, FunctionType))
-    print(isinstance(haha, ))
 
 

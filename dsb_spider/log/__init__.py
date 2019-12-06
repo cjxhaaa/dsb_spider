@@ -34,23 +34,22 @@ _LEVEL_FMT = '[dsb] %(asctime)s | %(levelname)5s | %(message)s'
 
 def exLogger(func):
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(_ex: Exception, *args, **kwargs):
         kwargs.setdefault('extra', {})
-        if args and isinstance(args[0], Exception):
-            if not isinstance(args[0], ex.DsbException):
-                kwargs['exc_info'] = args[0]
-            kwargs['extra'].update({
-                'ex_code': getattr(args[0], 'ex_code', 0),
-                'ex_name': args[0].__class__.__name__,
-                'ex_msg': args[0].__str__()
-            })
-            
-            url = kwargs.pop('url', '')
-            if url:
-                args = (f'{args[0].__class__.__name__} : {url}',)  # 这样直接改，有待商榷
-                kwargs['extra'].update({'url': url})
+        if not isinstance(_ex, ex.DsbException):
+            kwargs['exc_info'] = _ex
+        kwargs['extra'].update({
+            'ex_code': getattr(_ex, 'ex_code', 0),
+            'ex_name': _ex.__class__.__name__,
+            'ex_msg': _ex.__str__()
+        })
         
-        return func(*args, **kwargs)
+        url = kwargs.pop('url', '')
+        if url:
+            _ex = (f'{_ex.__class__.__name__} : {url}',)  # 这样直接改，有待商榷
+            kwargs['extra'].update({'url': url})
+
+        return func(_ex, *args, **kwargs)
     
     return wrapper
 
