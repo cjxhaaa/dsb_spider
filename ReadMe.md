@@ -1,6 +1,6 @@
 ## 安装
 ```text
-pip3 install dsb_spider
+pip3 install dsb_spider==0.2.6
 ```
 ## 使用
 
