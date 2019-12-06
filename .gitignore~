@@ -1,5 +1,0 @@
-.idea
-dist/
-dsb_spider.egg-info/
-build/
-*.pyc
