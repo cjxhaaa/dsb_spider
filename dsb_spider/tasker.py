@@ -1,7 +1,7 @@
 from dsb_spider.log import getLogger,DEBUG
 from dsb_spider.log.ex import DsbException
 logger = getLogger('dsb')
-logger.setLevel(DEBUG)
+# logger.setLevel(DEBUG)
 from dsb_spider.utils import hash_args
 from types import MethodType,FunctionType
 
@@ -77,11 +77,6 @@ def getTaskFuncRegister(name: str):
 
 exRegistry = getTaskFuncRegister('ex')
 
-@exRegistry
-def default(self, ex, *args, **kwargs):
-    logger.errorx(ex)
-    pass
-
 def exhandler(ignore:bool=True, interrupt:bool=False):
     def deco_func(func):
         def deco_args(self, *args, **kwargs):
@@ -91,16 +86,18 @@ def exhandler(ignore:bool=True, interrupt:bool=False):
                 logger.debug(_ex)
             except Exception as _ex:
                 if hasattr(_ex, 'handle_name'):
-                    exRegistry[_ex.handle_name](self, _ex, *args, *kwargs)
+                    ex_handler = exRegistry[_ex.handle_name]
                 else:
-                    exRegistry['default'](self, _ex, *args, *kwargs)
+                    ex_handler = exRegistry['default']
+                callable(ex_handler) and ex_handler(self, _ex, *args, *kwargs)
+
                 if interrupt:
                     self.finish()
                 if not ignore:
                     raise
         return deco_args
     return deco_func
-                
+    
 
 # 使用单例保证相同任务运行的唯一性
 class TaskSingleton(type):
