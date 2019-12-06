@@ -1,6 +1,6 @@
 from dsb_spider.utils import str_to_dict
 from dsb_spider.timer import Timer
-from dsb_spider.log.ex import TooManyRequestRetries
+from dsb_spider.log.ex import DsbException
 from urllib.parse import urljoin, urlparse
 from lxml import etree
 from requests.exceptions import (ConnectTimeout, ConnectionError, ReadTimeout)
@@ -26,6 +26,12 @@ _Paths = Union[str, List[str], Set[str]]
 _XpathElems =  Union[List[etree._Element], List[str]]
 _Content = Union[str, bytes]
 _Resp = Union[requests.Response, _Content]
+
+
+class TooManyRequestRetries(DsbException):
+    def __init__(self, msg=''):
+        msg = '请求重试过多: {}'.format(msg)
+        super().__init__(msg)
 
 ns = etree.FunctionNamespace(None)
 
