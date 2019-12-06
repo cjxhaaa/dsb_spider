@@ -35,11 +35,11 @@ def trim(context, result):  # 新增: //a[trim(text()) = "Dsb"]
 
 @ns
 def lower(context, result): # 新增：//a[lower(text()) = "dsb"]
-    return [text.strip() for text in result]
+    return [text.lower() for text in result]
 
 @ns
 def upper(context, result): #新增：//a[upper(text()) = "DSB"]
-    return [text.strip() for text in result]
+    return [text.upper() for text in result]
 
 
 class _Response(object):
@@ -84,9 +84,9 @@ class NewResponse(requests.Response):
             traceback.print_exc()
             return []
         
-    def save_self(self):
-        with open('/tmp/t.html', 'w') as fb:
-            print('/tmp/t.html')
+    def save_self(self, path:str='/tmp/t.html'):
+        with open(path, 'w') as fb:
+            print(path)
             fb.write(self.text)
     
 def tranResponse(response: _Resp) -> Union[NewResponse, _Response]:
