@@ -5,10 +5,6 @@ import log
 logger = log.getLogger('dsb')
 logger.info('hah')
 console output 'hah'
-
-logger = log.getLogger('dsb.mongo')
-logger.error('hah')
-mongo will save log 'hah'
 '''
 from dsb_spider.log.formatter import ColorFormatter
 from dsb_spider.log import ex

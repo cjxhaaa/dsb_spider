@@ -1,6 +1,6 @@
 ## 安装
 ```text
-pip3 install dsb_spider==0.2.11
+pip3 install dsb_spider==0.2.12
 ```
 ## 使用
 
@@ -17,12 +17,27 @@ resp.save_self()
 title1 = resp.xpath('//head/title/text()')
 title2 = resp.xpath(['//head/title/text()', '//meta[@name="twitter:title"]/text()'])
 # 输出： ["Origins 5-Pc. Plantscription Nourish, Renew & Hydrate Set & Reviews - Macy's"]
-  
+
+# 支持正则
+result1 = resp.regex('.*?')
+
+# 正则后转json
+result2 = resp.regex_json('.*?')
+
 # 扩展少量xpath比较字符函数:
 # trim() 清空两侧, lower() 小写, upper() 大写
 resp.xpath('//head/meta[trim(@value) = "Product"]')
 resp.xpath('//head/meta[lower(@value) = "product"]')
 resp.xpath('//head/meta[upper(@value) = "PRODUCT"]')
+
+# 注册默认获取代理函数，方便使用request的use_default_proxy参数
+from dsb_spider import getTaskFuncRegister
+
+def get_proxy():
+    return 'XXX.XX.X.X'
+
+proxyRegistry = getTaskFuncRegister('proxy')
+proxyRegistry.update({'get_proxy', get_proxy}) # 注册的函数名必须为get_proxy
 
 ```
 #### 日志打印格式化
@@ -47,7 +62,7 @@ Task对象是基于传入的参数实现的单例，task会有Ready，Running，
 * Running态，此时可run, stop, 不可ready。
 * Stop态，任务结束，啥都干不了。
 
-
+可以注册do_ready, do_task, do_finish方法，方法均在task状态改变后被调用
 
 ```text
                   do_ready               do_task
@@ -58,7 +73,7 @@ Task对象是基于传入的参数实现的单例，task会有Ready，Running，
                      |  +-------------+ stop  |
                      +--> StopedState <-------+
                         +-------------+
-                            do_stop
+                            do_finish
 
 ```
 
@@ -73,6 +88,7 @@ TASK_NAME = 'task'
 task = getTaskFuncRegister(TASK_NAME) # 注册器
  
 # 定义task阶段: ready -> do -> stop
+
 @task
 def do_ready(self):
     logger.info(f'{self.id} ready')
@@ -181,7 +197,7 @@ def do_task(self):
     raise TestExError   # 假装出现了异常
  
 @errtask
-def do_stop(self):
+def do_finish(self):
     logger.info(f'{self.id} stop')
     
 @errtask

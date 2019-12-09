@@ -3,7 +3,6 @@ from dsb_spider.log.ex import DsbException
 logger = getLogger('dsb')
 # logger.setLevel(DEBUG)
 from dsb_spider.utils import hash_args
-from types import MethodType,FunctionType
 
 class TaskStateError(DsbException):
     ex_msg = 'haha~'
@@ -22,10 +21,15 @@ class TaskAlreadyStopedError(TaskStateError):
 # 注册
 _TASK_FUNC_REGISTERS = {}
 
+def default(self, _ex , *args, **kwargs):
+    logger.errorx(_ex)
+
 class _FuncRegistry():
     def __init__(self, name:str):
         self.name = name
         self.funcs = {}
+        if name == 'ex':
+            self['default'] = default
         
     def update(self, funcs_iter):
         if hasattr(funcs_iter, 'items'):
@@ -125,7 +129,6 @@ class TaskSingleton(type):
 class ReadyState():
     @staticmethod
     def ready(task):
-        task.do_ready()
         task.new_state(RunningState)
     
     @staticmethod
@@ -135,7 +138,6 @@ class ReadyState():
     @staticmethod
     def stop(task):
         task.new_state(StopedState)
-        task.do_stop()
 
 class RunningState():
     @staticmethod
@@ -144,12 +146,11 @@ class RunningState():
 
     @staticmethod
     def run(task):
-        task.do_task()
+        logger.info(f'start {task}')
 
     @staticmethod
     def stop(task):
         task.new_state(StopedState)
-        task.do_stop()
 
 class StopedState():
     @staticmethod
@@ -167,19 +168,16 @@ class StopedState():
 # 定义任务阶段： ready -> run -> finish
 
 class Task(object, metaclass=TaskSingleton):
-    # def __new__(cls, _name, *args, **kwargs):
-    #     registry = getTaskFuncRegister(_name)
-    #     for key, value in registry.items():
-    #         setattr(cls, key, value)
-    #     return super().__new__(cls)
+    def __new__(cls, _name, *args, **kwargs):
+        for key, value in getTaskFuncRegister(_name).items():
+            setattr(cls, key, value)
+        return super().__new__(cls)
     
     def __init__(self,_name, listener=None, **kwargs):
         self._name = _name
         self.listener=listener
         self.new_state(ReadyState)
-        registry = getTaskFuncRegister(_name)
-        for key, value in registry.items():
-            setattr(self, key, MethodType(value, self))
+        
         for k, v in kwargs.items():
             setattr(self, k, v)
         self._dead = False
@@ -192,16 +190,22 @@ class Task(object, metaclass=TaskSingleton):
         self._state.ready(self)
         if self.listener is not None:
             self.listener.enqueue(self)
+        if hasattr(self, 'do_ready'):
+            self.do_ready()
 
     @exhandler(interrupt=True)
     def run(self):
         self._state.run(self)
+        if hasattr(self, 'do_task'):
+            self.do_task()
 
     @exhandler()
     def finish(self):
+        self._state.stop(self)
         if hasattr(self, 'hash_key'):
             TaskSingleton.clear(self.hash_key)
-        self._state.stop(self)
+        if hasattr(self, 'do_finish'):
+            self.do_finish()
 
     def __repr__(self):
         if hasattr(self, '_repr'):
@@ -215,18 +219,10 @@ class Task(object, metaclass=TaskSingleton):
     
 if __name__ == '__main__':
     haha = getTaskFuncRegister('haha')
-    @haha
-    def do_ready(self):
-        print('ready')
         
     @haha
     def do_task(self):
         print('run')
-
-    @haha
-    def do_stop(self):
-        print('stop')
-
 
     @haha
     def _repr(self):

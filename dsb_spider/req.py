@@ -6,12 +6,16 @@ from lxml import etree
 from requests.exceptions import (ConnectTimeout, ConnectionError, ReadTimeout)
 from requests.adapters import HTTPAdapter
 from functools import partial
-from typing import List, Set, Union, Callable
+from typing import List, Set, Union
+from collections import Counter
+from dsb_spider.tasker import getTaskFuncRegister
 import requests
 import time
 import traceback
+import re
+import demjson
 
-__ALL__ = ['request', 'get', 'post', 'tranResponse','response2selector','HTTPSSortHeaderAdapter']
+__ALL__ = ['request', 'get', 'post', 'tranResponse','HTTPSSortHeaderAdapter']
 
 default_headers = {
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -23,8 +27,9 @@ default_headers = {
 SESSIONS_MAP = {}
 
 _Paths = Union[str, List[str], Set[str]]
+_Content = _Patten = Union[str, bytes]
+_Pattens = Union[_Patten, List[_Patten], Set[_Patten]]
 _XpathElems =  Union[List[etree._Element], List[str]]
-_Content = Union[str, bytes]
 _Resp = Union[requests.Response, _Content]
 
 
@@ -54,6 +59,8 @@ class _Response(object):
             self._content = text
         else:
             self._content = bytes(text, 'utf8')
+            
+_RE_COMPILE_CACHE = {}
         
 class NewResponse(requests.Response):
     def __init__(self):
@@ -89,6 +96,22 @@ class NewResponse(requests.Response):
         except AttributeError as e:
             traceback.print_exc()
             return []
+    
+    def regex(self, paths:_Pattens, flags=0) ->  List[str,bytes]:
+        for path in paths:
+            if isinstance(path, str):
+                result = re.findall(path, self.text, flags)
+            else:
+                result = re.findall(path, self.content, flags)
+            if len(result) > 0:
+                return result
+        return []
+    
+    def regex_json(self, paths:_Paths, flags=0) -> List[dict]:
+        results = []
+        for _result in self.regex(paths, flags):
+            results.append(demjson.decode(_result))
+        return results
         
     def save_self(self, path:str='/tmp/t.html'):
         with open(path, 'w') as fb:
@@ -162,17 +185,14 @@ def clear_session_by_url(url):
     SESSIONS_MAP.pop(netloc, None)
 
 
-SESSION_NUM = {}
+_SESSION_COUNTER = Counter()
 
 
 def counter_session(netloc, max_count):
     max_count = max_count or 10000
-    if SESSION_NUM.get(netloc):
-        SESSION_NUM[netloc] += 1
-    else:
-        SESSION_NUM[netloc] = 1
+    _SESSION_COUNTER[netloc] += 1
     
-    if SESSION_NUM[netloc] > max_count:
+    if _SESSION_COUNTER[netloc] > max_count:
         s = SESSIONS_MAP.pop(netloc, None)
         if s:
             s.close()
@@ -225,13 +245,16 @@ def request(method:str, url:str, adapter:HTTPAdapter=None, max_count:int=None,re
     while True:
         try:
             if use_default_proxy:
-                proxy = default_get_proxies()
-                print(proxy)
-                if proxy:
-                    proxies = {'http': proxy, 'https': proxy}
+                try:
+                    get_proxy_func = getTaskFuncRegister('proxy')['get_proxy']
+                    proxy = get_proxy_func()
+                    print(proxy)
+                    if proxy:
+                        proxies = {'http': proxy, 'https': proxy}
+                except KeyError:
+                    pass
             
-            if proxies:
-                kwargs['proxies'] = proxies
+            kwargs['proxies'] = proxies
 
             with Timer(method + ' request: ' + url, timeout=5):
                 session = kwargs.pop('session', None) or SESSIONS_MAP.get(netloc, None)  # 根据每一个主机名来取一个session
