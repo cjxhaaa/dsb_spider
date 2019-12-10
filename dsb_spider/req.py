@@ -97,7 +97,10 @@ class NewResponse(requests.Response):
             traceback.print_exc()
             return []
     
-    def regex(self, paths:_Pattens, flags=0) ->  List[str,bytes]:
+    def regex(self, paths:_Pattens, flags=0) ->  List[_Content]:
+        if isinstance(paths, (str, bytes)):
+            paths = [paths]
+            
         for path in paths:
             if isinstance(path, str):
                 result = re.findall(path, self.text, flags)

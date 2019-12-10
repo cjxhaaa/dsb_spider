@@ -219,10 +219,19 @@ class Task(object, metaclass=TaskSingleton):
     
 if __name__ == '__main__':
     haha = getTaskFuncRegister('haha')
+    
+    @haha
+    def do_ready(self):
+        raise Exception('hehe')
         
     @haha
     def do_task(self):
+        raise Exception('hehe')
         print('run')
+        
+    @haha
+    def do_finish(self):
+        raise Exception('hehe')
 
     @haha
     def _repr(self):

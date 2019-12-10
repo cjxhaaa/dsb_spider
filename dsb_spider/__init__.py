@@ -5,4 +5,4 @@ from dsb_spider.tasker import Task, ReadyState, StopedState, TaskSingleton, getT
 
 __all__ = ('log', 'ex', 'getLogger',
            'TaskListener',
-           'Task', 'ReadyState','StopedState', 'TaskSingleton',getTaskFuncRegister)
+           'Task', 'ReadyState','StopedState', 'TaskSingleton','getTaskFuncRegister')
