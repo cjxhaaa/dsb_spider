@@ -14,7 +14,7 @@ class Timer(object):
         self.start()
     
     def __enter__(self, *args, **kwargs):
-        pass
+        return self
     
     def __exit__(self, type, value, trace):
         self.stop()

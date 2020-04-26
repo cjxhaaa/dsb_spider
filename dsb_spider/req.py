@@ -196,6 +196,7 @@ def counter_session(netloc, max_count):
     _SESSION_COUNTER[netloc] += 1
     
     if _SESSION_COUNTER[netloc] > max_count:
+        _SESSION_COUNTER[netloc] = 0
         s = SESSIONS_MAP.pop(netloc, None)
         if s:
             s.close()
