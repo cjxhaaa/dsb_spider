@@ -4,7 +4,7 @@ from setuptools import setup,find_packages
 
 setup(
     name='dsb_spider',
-    version='0.2.14',
+    version='0.2.15',
     author='cjxh',
     author_email='chenjianxihang@duoshoubang.cn',
     url='http://m.fine3q.com/home-w/index.html',
