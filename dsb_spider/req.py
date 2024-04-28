@@ -13,7 +13,7 @@ import requests
 import time
 import traceback
 import re
-import demjson
+import json
 
 __ALL__ = ['request', 'get', 'post', 'tranResponse','HTTPSSortHeaderAdapter']
 
@@ -35,7 +35,7 @@ _Resp = Union[requests.Response, _Content]
 
 class TooManyRequestRetries(DsbException):
     def __init__(self, msg=''):
-        msg = '请求重试过多: {}'.format(msg)
+        msg = 'Too many request retries: {}'.format(msg)
         super().__init__(msg)
 
 ns = etree.FunctionNamespace(None)
@@ -113,7 +113,7 @@ class NewResponse(requests.Response):
     def regex_json(self, paths:_Paths, flags=0) -> List[dict]:
         results = []
         for _result in self.regex(paths, flags):
-            results.append(demjson.decode(_result))
+            results.append(json.loads(_result))
         return results
         
     def save_self(self, path:str='/tmp/t.html'):
